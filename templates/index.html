@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sudoku DevOps App</title>
+
+<style>
+body{
+    font-family:'Segoe UI';
+    background:linear-gradient(135deg,#1f1c2c,#928dab);
+    text-align:center;
+    color:white;
+}
+
+h1{margin-top:30px;}
+
+table{
+    margin:30px auto;
+    border-collapse:collapse;
+    border:4px solid black;
+    background:white;
+    box-shadow:0 10px 25px rgba(0,0,0,.4);
+}
+
+td{
+    width:55px;
+    height:55px;
+    border:1px solid #bbb;
+    padding:0;
+}
+
+input{
+    width:100%;
+    height:100%;
+    border:none;
+    text-align:center;
+    font-size:22px;
+    font-weight:bold;
+    background:transparent;
+}
+
+input:focus{
+    outline:none;
+    background:#eef;
+}
+
+button{
+    padding:12px 25px;
+    margin:10px;
+    border:none;
+    border-radius:25px;
+    background:#ff6b6b;
+    color:white;
+    font-size:16px;
+    cursor:pointer;
+}
+button:hover{background:#ff3b3b;}
+
+select{
+    padding:6px 10px;
+    border-radius:10px;
+    border:none;
+}
+
+td.block-right{ border-right:4px solid black !important; }
+tr.block-bottom td{ border-bottom:4px solid black !important; }
+
+.invalid{ background:#ffcccc !important; }
+</style>
+</head>
+
+<body>
+
+<h1>Sudoku DevOps App</h1>
+
+<select id="difficulty">
+<option value="easy">Easy</option>
+<option value="medium">Medium</option>
+<option value="hard">Hard</option>
+</select>
+
+<br>
+<button onclick="generate()">Generate</button>
+<button onclick="solve()">Solve</button>
+<button onclick="validateBoard()">Validate</button>
+
+<table id="board"></table>
+
+<script>
+
+function createBoard(board){
+    let table=document.getElementById("board");
+    table.innerHTML="";
+
+    for(let i=0;i<9;i++){
+        let row=document.createElement("tr");
+
+        for(let j=0;j<9;j++){
+            let cell=document.createElement("td");
+
+            if((j+1)%3===0 && j!==8){
+                cell.classList.add("block-right");
+            }
+
+            let input=document.createElement("input");
+            input.type="number";
+            input.min="1";
+            input.max="9";
+            input.maxLength=1;
+
+            if(board && board[i][j]!==0){
+                input.value=board[i][j];
+                input.disabled=true;
+            }
+
+            input.oninput=function(){
+                this.value=this.value.replace(/[^1-9]/g,'');
+                validateLive();
+            };
+
+            cell.appendChild(input);
+            row.appendChild(cell);
+        }
+
+        if((i+1)%3===0 && i!==8){
+            row.classList.add("block-bottom");
+        }
+
+        table.appendChild(row);
+    }
+}
+
+async function generate(){
+    let diff=document.getElementById("difficulty").value;
+    let res=await fetch(`/generate?difficulty=${diff}`);
+    let data=await res.json();
+    createBoard(data.puzzle);
+}
+
+function getBoard(){
+    let table=document.getElementById("board");
+    let board=[];
+    for(let i=0;i<9;i++){
+        let row=[];
+        for(let j=0;j<9;j++){
+            let val=table.rows[i].cells[j].firstChild.value;
+            row.push(val==""?0:parseInt(val));
+        }
+        board.push(row);
+    }
+    return board;
+}
+
+async function solve(){
+    let board=getBoard();
+    let res=await fetch("/solve",{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({board})
+    });
+    let data=await res.json();
+    createBoard(data.solution);
+}
+
+async function validateBoard(){
+    let board=getBoard();
+    let res=await fetch("/validate",{
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({board})
+    });
+    let data=await res.json();
+    alert(data.valid ? "Valid board!" : "Invalid board!");
+}
+
+function validateLive(){
+    let board=getBoard();
+    let table=document.getElementById("board");
+
+    for(let i=0;i<9;i++)
+        for(let j=0;j<9;j++)
+            table.rows[i].cells[j].firstChild.classList.remove("invalid");
+
+    for(let i=0;i<9;i++){
+        for(let j=0;j<9;j++){
+            let val=board[i][j];
+            if(val===0) continue;
+
+            for(let k=0;k<9;k++){
+                if(k!==j && board[i][k]===val)
+                    table.rows[i].cells[j].firstChild.classList.add("invalid");
+
+                if(k!==i && board[k][j]===val)
+                    table.rows[i].cells[j].firstChild.classList.add("invalid");
+            }
+
+            let boxRow=Math.floor(i/3)*3;
+            let boxCol=Math.floor(j/3)*3;
+
+            for(let r=0;r<3;r++){
+                for(let c=0;c<3;c++){
+                    let rr=boxRow+r, cc=boxCol+c;
+                    if((rr!==i || cc!==j) && board[rr][cc]===val)
+                        table.rows[i].cells[j].firstChild.classList.add("invalid");
+                }
+            }
+        }
+    }
+}
+
+</script>
+</body>
+</html>
